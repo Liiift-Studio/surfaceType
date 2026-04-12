@@ -1,0 +1,32 @@
+{
+	"name": "surface-type-site",
+	"version": "0.1.0",
+	"private": true,
+	"scripts": {
+		"dev": "next dev",
+		"build": "cd .. && npm run build && cd site && next build",
+		"start": "next start",
+		"lint": "eslint"
+	},
+	"dependencies": {
+		"next": "16.2.2",
+		"react": "19.2.4",
+		"react-dom": "19.2.4",
+		"three": "^0.170.0",
+		"@react-three/fiber": "^8.17.0",
+		"@react-three/drei": "^9.117.0",
+		"troika-three-text": "^0.49.1",
+		"@liiift-studio/surfacetype": "file:.."
+	},
+	"devDependencies": {
+		"@tailwindcss/postcss": "^4",
+		"@types/node": "^20",
+		"@types/react": "^19",
+		"@types/react-dom": "^19",
+		"@types/three": "^0.170.0",
+		"eslint": "^9",
+		"eslint-config-next": "16.2.2",
+		"tailwindcss": "^4",
+		"typescript": "^5"
+	}
+}

@@ -1,0 +1,85 @@
+{
+	"name": "@liiift-studio/surfacetype",
+	"version": "0.0.1",
+	"description": "Project typeset text onto 3D surfaces — sphere, cylinder, torus, or plane — using Three.js and troika-three-text SDF rendering",
+	"type": "module",
+	"main": "dist/index.cjs",
+	"module": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js",
+			"require": "./dist/index.cjs"
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "vite build",
+		"typecheck": "tsc --noEmit",
+		"prepublishOnly": "npm run build"
+	},
+	"peerDependencies": {
+		"three": ">=0.150.0",
+		"@react-three/fiber": ">=8.0.0",
+		"react": ">=17",
+		"react-dom": ">=17"
+	},
+	"peerDependenciesMeta": {
+		"@react-three/fiber": {
+			"optional": true
+		},
+		"react": {
+			"optional": true
+		},
+		"react-dom": {
+			"optional": true
+		}
+	},
+	"devDependencies": {
+		"@react-three/fiber": "^8.17.0",
+		"@types/react": "^19.0.0",
+		"@types/three": "^0.170.0",
+		"@vitejs/plugin-react": "^4.0.0",
+		"next": "16.2.2",
+		"react": "^19.0.0",
+		"three": "^0.170.0",
+		"troika-three-text": "^0.49.1",
+		"typescript": "^5.0.0",
+		"vite": "^6.0.0",
+		"vite-plugin-dts": "^4.0.0"
+	},
+	"keywords": [
+		"typography",
+		"3d",
+		"three",
+		"threejs",
+		"troika",
+		"sdf",
+		"surface",
+		"sphere",
+		"cylinder",
+		"torus",
+		"react-three-fiber",
+		"r3f",
+		"typographic",
+		"zero-dependencies",
+		"typescript"
+	],
+	"author": "Quinn Keaveney <quinn@liiift.studio>",
+	"license": "MIT",
+	"homepage": "https://surfacetype.com",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/Liiift-Studio/SurfaceType.git"
+	},
+	"bugs": {
+		"url": "https://github.com/Liiift-Studio/SurfaceType/issues"
+	},
+	"sideEffects": false,
+	"publishConfig": {
+		"access": "public"
+	}
+}
