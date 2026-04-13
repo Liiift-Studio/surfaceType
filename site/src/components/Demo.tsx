@@ -1,8 +1,8 @@
 "use client"
 
-// Interactive R3F demo — shape selector, text input, font size slider, orbit controls
-import { useState, useRef, Suspense, useDeferredValue } from "react"
-import { Canvas } from "@react-three/fiber"
+// Interactive R3F demo — shape selector, text input, font size slider, orbit/gyro/cursor controls
+import { useState, useRef, useEffect, Suspense, useDeferredValue } from "react"
+import { Canvas, useThree, useFrame } from "@react-three/fiber"
 import { OrbitControls, Environment } from "@react-three/drei"
 import * as THREE from "three"
 import type { SurfaceGeometryType } from "@liiift-studio/surfacetype"
@@ -63,9 +63,50 @@ function WireframeMesh({ geometryType, radius }: { geometryType: SurfaceGeometry
 	}
 }
 
+/** SVG icon for gyro/tilt mode */
+function GyroIcon() {
+	return (
+		<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+			<rect x="7" y="2" width="10" height="20" rx="2" />
+			<path d="M12 18h.01" />
+		</svg>
+	)
+}
+
+/** SVG icon for cursor/mouse orbit mode */
+function CursorIcon() {
+	return (
+		<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+			<path d="M5 3l14 9-7 1-4 7z" />
+		</svg>
+	)
+}
+
+/**
+ * CameraController — lives inside the R3F Canvas. When gyro or cursor mode is
+ * active, lerps the camera toward the azimuth/polar target stored in targetRef
+ * each frame. Disabled when neither mode is active.
+ */
+function CameraController({ gyroMode, cursorMode, targetRef }: {
+	gyroMode: boolean
+	cursorMode: boolean
+	targetRef: React.RefObject<{ azimuth: number; polar: number }>
+}) {
+	const { camera } = useThree()
+	useFrame(() => {
+		if ((!gyroMode && !cursorMode) || !targetRef.current) return
+		const { azimuth, polar } = targetRef.current
+		const dist = camera.position.length() || 3.5
+		const target = new THREE.Vector3().setFromSphericalCoords(dist, polar, azimuth)
+		camera.position.lerp(target, 0.08)
+		camera.lookAt(0, 0, 0)
+	})
+	return null
+}
+
 /**
  * Full interactive demo: R3F canvas with shape selector, text input, font size slider,
- * auto-rotate toggle, and OrbitControls.
+ * auto-rotate toggle, OrbitControls, gyro-to-orbit, and cursor-to-orbit modes.
  */
 export default function Demo() {
 	const [shape, setShape] = useState<SurfaceGeometryType>('sphere')
@@ -74,12 +115,124 @@ export default function Demo() {
 	const [autoRotate, setAutoRotate] = useState(true)
 	const [showWireframe, setShowWireframe] = useState(true)
 
+	// Gyro mode state
+	const [gyroMode, setGyroMode] = useState(false)
+	const [showGyro, setShowGyro] = useState(false)
+
+	// Cursor mode state
+	const [cursorMode, setCursorMode] = useState(false)
+	const [showCursor, setShowCursor] = useState(false)
+
+	// Shared camera target ref — written by event listeners, read by CameraController useFrame
+	const cameraTarget = useRef({ azimuth: 0, polar: Math.PI / 3 })
+
+	// rAF handle for gyro throttle
+	const gyroRafRef = useRef<number | null>(null)
+
 	// Deferred values prevent expensive 3D re-renders on every keystroke/slider tick
 	const deferredText = useDeferredValue(text)
 	const deferredFontSize = useDeferredValue(fontSize)
 	const deferredShape = useDeferredValue(shape)
 
 	const RADIUS = 1.0
+
+	// Detect which mode buttons to show after mount
+	useEffect(() => {
+		const isTouchOnly = window.matchMedia('(hover: none)').matches
+		const hasDeviceOrientation = typeof DeviceOrientationEvent !== 'undefined'
+		setShowGyro(isTouchOnly && hasDeviceOrientation)
+		setShowCursor(!isTouchOnly)
+	}, [])
+
+	// Gyro event handler
+	useEffect(() => {
+		if (!gyroMode) return
+
+		function handleOrientation(e: DeviceOrientationEvent) {
+			// Throttle via rAF
+			if (gyroRafRef.current !== null) return
+			gyroRafRef.current = requestAnimationFrame(() => {
+				gyroRafRef.current = null
+				const gamma = e.gamma ?? 0 // left/right tilt: -90 to 90
+				const beta  = e.beta  ?? 45 // front/back tilt: -180 to 180, use 15–90
+
+				// Map gamma (-90→90) to azimuth (−π → π)
+				const azimuth = (gamma / 90) * Math.PI
+				// Map beta (clamp 15→90) to polar (0.8π → 0.2π — top to front)
+				const betaClamped = Math.max(15, Math.min(90, beta))
+				const polar = 0.8 * Math.PI - ((betaClamped - 15) / 75) * (0.6 * Math.PI)
+
+				cameraTarget.current = { azimuth, polar }
+			})
+		}
+
+		window.addEventListener('deviceorientation', handleOrientation)
+		return () => {
+			window.removeEventListener('deviceorientation', handleOrientation)
+			if (gyroRafRef.current !== null) {
+				cancelAnimationFrame(gyroRafRef.current)
+				gyroRafRef.current = null
+			}
+		}
+	}, [gyroMode])
+
+	// Cursor mode event handler
+	useEffect(() => {
+		if (!cursorMode) return
+
+		function handleMouseMove(e: MouseEvent) {
+			// Map x (0→1) to azimuth (0 → 2π)
+			const azimuth = (e.clientX / window.innerWidth) * 2 * Math.PI
+			// Map y (0→1) to polar (0.2π → 0.8π)
+			const polar = 0.2 * Math.PI + (e.clientY / window.innerHeight) * (0.6 * Math.PI)
+			cameraTarget.current = { azimuth, polar }
+		}
+
+		function handleKeyDown(e: KeyboardEvent) {
+			if (e.key === 'Escape') setCursorMode(false)
+		}
+
+		window.addEventListener('mousemove', handleMouseMove)
+		window.addEventListener('keydown', handleKeyDown)
+		return () => {
+			window.removeEventListener('mousemove', handleMouseMove)
+			window.removeEventListener('keydown', handleKeyDown)
+		}
+	}, [cursorMode])
+
+	/** Toggle gyro mode, requesting iOS permission if needed */
+	async function toggleGyro() {
+		if (gyroMode) {
+			setGyroMode(false)
+			return
+		}
+		// iOS 13+ requires explicit permission
+		if (
+			typeof DeviceOrientationEvent !== 'undefined' &&
+			typeof (DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> }).requestPermission === 'function'
+		) {
+			try {
+				const permission = await (DeviceOrientationEvent as unknown as { requestPermission: () => Promise<string> }).requestPermission()
+				if (permission !== 'granted') return
+			} catch {
+				return
+			}
+		}
+		setCursorMode(false)
+		setAutoRotate(false)
+		setGyroMode(true)
+	}
+
+	/** Toggle cursor orbit mode */
+	function toggleCursor() {
+		if (cursorMode) {
+			setCursorMode(false)
+			return
+		}
+		setGyroMode(false)
+		setAutoRotate(false)
+		setCursorMode(true)
+	}
 
 	return (
 		<div className="w-full flex flex-col gap-6">
@@ -174,6 +327,42 @@ export default function Demo() {
 				/>
 			</div>
 
+			{/* Interaction mode buttons — shown based on device capability */}
+			{(showCursor || showGyro) && (
+				<div className="flex gap-3">
+					{showCursor && (
+						<button
+							onClick={toggleCursor}
+							aria-pressed={cursorMode}
+							className="flex items-center gap-1.5 text-xs px-3 py-1 rounded-full border transition-opacity"
+							style={{
+								borderColor: 'currentColor',
+								opacity: cursorMode ? 1 : 0.4,
+								background: cursorMode ? 'var(--btn-bg)' : 'transparent',
+							}}
+						>
+							<CursorIcon />
+							{cursorMode ? 'Esc to exit' : 'Cursor'}
+						</button>
+					)}
+					{showGyro && (
+						<button
+							onClick={toggleGyro}
+							aria-pressed={gyroMode}
+							className="flex items-center gap-1.5 text-xs px-3 py-1 rounded-full border transition-opacity"
+							style={{
+								borderColor: 'currentColor',
+								opacity: gyroMode ? 1 : 0.4,
+								background: gyroMode ? 'var(--btn-bg)' : 'transparent',
+							}}
+						>
+							<GyroIcon />
+							{gyroMode ? 'Tilt active' : 'Tilt'}
+						</button>
+					)}
+				</div>
+			)}
+
 			{/* R3F Canvas */}
 			<div
 				className="w-full rounded-xl overflow-hidden"
@@ -196,21 +385,28 @@ export default function Demo() {
 							text={deferredText}
 							fontSize={deferredFontSize}
 							radius={RADIUS}
-							autoRotate={autoRotate}
+							autoRotate={autoRotate && !gyroMode && !cursorMode}
 						/>
 					</Suspense>
 
 					<OrbitControls
+						enabled={!gyroMode && !cursorMode}
 						enablePan={false}
 						minDistance={1.5}
 						maxDistance={8}
 						autoRotate={false}
 					/>
+
+					<CameraController
+						gyroMode={gyroMode}
+						cursorMode={cursorMode}
+						targetRef={cameraTarget}
+					/>
 				</Canvas>
 			</div>
 
 			<p className="text-xs opacity-50 italic" style={{ lineHeight: '1.8' }}>
-				Drag to orbit. Text follows the curvature of the surface using troika-three-text&apos;s native curveRadius — no UV unwrapping required.
+				Drag to orbit, or use Cursor / Tilt mode to orbit hands-free. Text follows the curvature of the surface using troika-three-text&apos;s native curveRadius — no UV unwrapping required.
 			</p>
 		</div>
 	)
