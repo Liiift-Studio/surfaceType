@@ -1,6 +1,6 @@
 {
 	"name": "@liiift-studio/surfacetype",
-	"version": "0.0.4",
+	"version": "0.0.5",
 	"description": "Project typeset text onto 3D surfaces — sphere, cylinder, torus, or plane — using Three.js and troika-three-text SDF rendering",
 	"type": "module",
 	"main": "dist/index.cjs",
